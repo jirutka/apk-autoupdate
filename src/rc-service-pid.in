@@ -1,0 +1,90 @@
+#!/bin/sh
+# This file is part of apk-autoupdate package and is licensed under MIT license.
+#---help---
+# Usage: rc-service-pid [-h | SVCNAME | PID]
+#
+# Prints list of running OpenRC services with their PIDs (services which PID
+# cannot be resolved are omitted).  If SVCNAME is provided, prints only PID
+# of service with name SVCNAME.  If PID is provided, prints name of the
+# service that started process with the given PID or its ancestor.
+#---help---
+set -eu
+
+# Set pipefail if supported.
+if ( set -o pipefail 2>/dev/null ); then
+	set -o pipefail
+fi
+
+readonly OPENRC_LIB='/lib/rc'
+
+help() {
+	sed -En '/^#---help---/,/^#---help---/p' "$0" | sed -E 's/^# ?//; 1d;$d;'
+	exit ${1:-0}
+}
+
+# Prints names of started (running) services in all runlevels.
+started_services() {
+	rc-status --servicelist --no-color \
+		| grep '\[ *started *\]' \
+		| sed -En 's/ *([^ ]+).*/\1/p'
+}
+
+# Prints value $2 of the service with name $1.
+service_get_value() {
+	RC_SVCNAME="$1" "$OPENRC_LIB"/bin/service_get_value "$2"
+}
+
+# Prints PID of the service with name $1.
+service_pid() {
+	local pidfile=$(service_get_value "$1" pidfile || echo "/run/$1.pid")
+	local pid=$(head -n 1 "$pidfile" 2>/dev/null)
+
+	[ "$pid" ] && printf '%d\n' "$pid" || false
+}
+
+# Returns 0 if PID $1 is descendant of PID $2, 10 otherwise.
+is_pid_descendant() {
+	local pid="$1"
+	local apid="$2"
+
+	ps -o pid= -o ppid= | sort -nr -k 1 | awk -v pid=$pid -v apid=$apid '
+		{
+			if ($1 == pid) {
+				if ($2 == apid) { found = 1; exit 0 }
+				pid = $2
+			}
+		}
+		END { if (!found) exit 10 }
+		'
+}
+
+
+# Print all started services with known PID
+if [ $# -eq 0 ]; then
+	for svc in $(started_services); do
+		pid=$(service_pid $svc) && printf '%s\t%d\n' $svc $pid
+	done
+
+# Print help
+elif [ "$1" = -h ]; then
+	help 0
+
+# Invalid usage
+elif [ $# -gt 1 ]; then
+	help 100
+
+# Find service by PID
+elif [ "$1" -eq "$1" ] 2>/dev/null; then  # if $1 is a number
+	for svc in $(started_services); do
+		pid=$(service_pid $svc) || continue
+
+		if [ "$pid" -eq $1 ] || is_pid_descendant $1 $pid; then
+			printf '%s\n' $svc; exit 0
+		fi
+	done
+	exit 1
+
+# Find PID of the service
+else
+	service_pid "$1"
+fi

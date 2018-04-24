@@ -3,9 +3,12 @@ VERSION       := $(shell cat VERSION)
 
 prefix        := /usr/local
 sbindir       := $(prefix)/sbin
+datadir       := $(prefix)/share/$(PACKAGE)
+sysconfdir    := /etc
 
 BUILD_DIR     := build
-BIN_FILES     := apk-autoupdate
+BIN_FILES     := apk-autoupdate procs-need-restart rc-service-pid
+DATA_FILES    := functions.sh openrc.sh
 
 INSTALL       := install
 SED           := sed
@@ -38,13 +41,26 @@ clean:
 
 #: Install into $DESTDIR.
 install: build $(DATA_FILES)
-	$(INSTALL) -d $(DESTDIR)$(sbindir)
+	$(INSTALL) -d $(DESTDIR)$(sbindir) \
+	              $(DESTDIR)$(datadir) \
+	              $(DESTDIR)$(sysconfdir)/apk/
 	for file in $(BIN_FILES); do \
 		$(INSTALL) -m 755 $(D)/$$file $(DESTDIR)$(sbindir)/$$file; \
 	done
+	for file in $(DATA_FILES); do \
+		$(INSTALL) -m 644 src/$$file $(DESTDIR)$(datadir)/$$file; \
+	done
+	$(INSTALL) -m 640 etc/autoupdate.conf $(DESTDIR)$(sysconfdir)/apk/
 
 .PHONY: all build clean install help
 
+
+$(D)/%: %.in | .builddir
+	$(SED) -e 's|@VERSION@|$(VERSION)|g' \
+	       -e 's|@datadir@|$(datadir)|g' \
+	       -e 's|@sysconfdir@|$(sysconfdir)|g' \
+	       $< > $@
+	chmod +x $@
 
 $(D)/%.o: %.c | .builddir
 	$(CC) $(CPPFLAGS) $(CFLAGS) -std=c11 -DVERSION=$(VERSION) -o $@ -c $<

@@ -1,0 +1,423 @@
+#!/bin/sh
+# This file is part of apk-autoupdate package and is licensed under MIT license.
+#---help---
+# Usage: apk-autoupdate [options] [CONFIG]
+#
+# Options:
+#   -s   Show what would be done without actually doing it.
+#   -v   Be verbose (i.e. print debug messages).
+#   -V   Print version and exit.
+#   -h   Show this message and exit.
+#
+# Please report bugs at <https://github.com/jirutka/apk-autoupdate/issues>.
+#---help---
+set -eu
+
+readonly DEFAULT_CONFIG='@sysconfdir@/apk/autoupdate.conf'
+readonly DATA_DIR='@datadir@'
+readonly PROGNAME='apk-autoupdate'
+readonly VERSION='@VERSION@'
+
+
+: ${DEBUG:=}
+: ${DRY_RUN:=}
+
+# Predeclare configuration variables with default values.
+apk_opts='--no-progress --wait 1'
+check_mapped_files_filter='!/dev/* !/home/* !/run/* !/tmp/* !/var/* *'
+packages_blacklist='linux-*'
+programs_services=''
+rc_service_opts='--ifstarted --quiet --nocolor --nodeps'
+services_whitelist=''
+services_blacklist='*'
+
+
+. "$DATA_DIR"/functions.sh
+. "$DATA_DIR"/openrc.sh
+
+# Option pipefail is not specified by POSIX and not supported e.g. by dash.
+# However, running this script without pipefail would be unsafe.
+( set -o pipefail 2>/dev/null ) \
+	&& set -o pipefail \
+	|| die 'Your shell does not support option pipefail!'
+
+
+# Parses help message from the top of this script, prints it and exits.
+# $1: exit status (default 0)
+help() {
+	sed -n '/^#---help---/,/^#---help---/p' "$0" \
+		| sed 's/^# \?//; 1d;$d;'
+	exit ${1:-0}
+}
+
+# Executes apk with the given options and default options $apk_opts.
+_apk() {
+	local cmd="$1"; shift
+
+	edebug "Executing: apk $cmd $apk_opts $*"
+	apk $cmd $apk_opts "$@"
+}
+
+# Checks available updates and prints list of packages that can be upgraded in
+# format <pkgname>:<oldver>:<newver>.
+find_updates() {
+	_apk upgrade --simulate \
+		| sed -En 's/.* Upgrading ([[:alnum:]+_-]+) \(([^ ]+) -> ([^ ]+)\)/\1:\2:\3/p'
+}
+
+# Returns 0 if an update for the specified package is available,
+# otherwise returns 1.
+# $1: package name
+has_update() {
+	_apk add --upgrade --simulate "$1" | grep -q "Upgrading $1 ("
+}
+
+# Returns 0 if the specified package can be upgraded, otherwise returns 1.
+# Package "apk-tools" is handled specially as self-upgrade.
+#
+# XXX: This is quite flawed, we need proper support for upgrade --exclude in
+# apk to make it more reliable.
+#
+# $1: package name
+default_can_upgrade() {
+	local pkgname="$1"
+	local affected apk_args
+
+	case_match "$_packages_blacklist" "$pkgname" && return 1
+
+	case "$pkgname" in
+		apk-tools) apk_args='upgrade --self-upgrade-only';;
+		*) apk_args='add --upgrade';;
+	esac
+
+	affected=$(_apk $apk_args --simulate "$pkgname" \
+		| sed -En 's/\([0-9/]+\) \w+ing ([[:alnum:]+_-]+) \(.*\)/\1/p')
+	case_match "$_packages_blacklist" $affected && return 1
+
+	return 0
+}
+
+# Upgrades specified package(s), unless $DRY_RUN.
+# $@: package name(s)
+upgrade() {
+	_apk add --upgrade ${DRY_RUN:+"--simulate"} "$@"
+}
+
+# Runs apk self-upgrade, i.e. upgrades apk-tools and other essential packages.
+self_upgrade() {
+	_apk upgrade --self-upgrade-only ${DRY_RUN:+"--simulate"}
+}
+
+# Maps the process to the service that manages it based on $programs_services.
+# Prints name of the service, optionally followed by an action (e.g. reload)
+# separated by a semicolon, or returns 1 if not found.
+# $1: PID
+# $2: path of the process' executable
+# $3: process cmdline
+program_to_service() {
+	local pid="$1"
+	local exe="$2"
+	local cmdline="$3"
+	local exe2="${cmdline%% *}"
+	local prog_patt
+
+	case "$exe2" in
+		/*);;
+		*) exe2='';;
+	esac
+
+	local item; for item in $programs_services; do
+		prog_patt=$(case_patt "${item%%:*}")
+		if [ "$prog_patt" ] && case_match "$prog_patt" "$exe" "$exe2"; then
+			printf '%s\n' "${item#*:}"
+			return 0
+		fi
+	done
+	return 1
+}
+
+# Restarts the specified process.
+# $1: PID
+# $2: path of the process' executable
+# $3: process cmdline
+default_restart_process() {
+	local pid="$1"
+	local exe="$2"
+	local cmdline="$3"
+	local svc svcname action
+
+	if svc=$(program_to_service "$pid" "$exe" "$cmdline" || find_service_by_pid "$pid"); then
+		svcname="${svc%:*}"
+
+		if list_has "$svcname" $_services_skipped \
+		   || list_has "$svcname" $_services_restarted; then
+			edebug "Service $svcname has been already handled, skipping"
+			return 0
+
+		elif can_restart_service "$svcname"; then
+			action="${svcname##*:}"
+			[ "$action" = "$svcname" ] && action=''
+
+			einfo "Restarting service $svcname"
+			restart_service "$svcname" "$action" || return 1
+		else
+			ewarn "Service $svcname should be restarted manually"
+			_services_skipped="$_services_skipped $svcname"
+		fi
+	else
+		edebug "Could not find service for process $pid ${cmdline%% *} ($exe)"
+		_unhandled_pids="$_unhandled_pids $pid"
+	fi
+}
+
+# Returns 0 if the specified service can be restarted, otherwise returns 1.
+# $1: service name
+default_can_restart_service() {
+	local svcname="$1"
+
+	case_match "$_services_whitelist_patt" "$svcname" && return 0
+	case_match "$_services_blacklist_patt" "$svcname" && return 1
+	return 0
+}
+
+# Restarts the specified service.
+# $1: service name
+# $2: service's command to execute (default is restart)
+default_restart_service() {
+	local svcname="$1"
+	local action="${2:-"restart"}"
+
+	_services_restarted="$_services_restarted $svcname"
+	service_ctl "$svcname" "$action"
+}
+
+# Formats and prints package update line as stored in $_upgrades_avail
+# (<pkgname>:<oldver>:<newver>).
+# $1: printf format with up to 3 %s
+# $2: line
+format_pkg_update() {
+	local fmt="$1"
+	local pkgname=${2%%:*}
+	local newver=${2##*:}
+	local oldver=${2#*:}; oldver=${oldver%:*}
+
+	printf "$fmt" "$pkgname" "$oldver" "$newver"
+}
+
+# Prints final summary about what has been done.
+print_report() {
+	local i exe cmdline
+
+	[ "$_packages_upgraded" ] || [ "$_packages_skipped" ] || return 0
+
+	printf -- '-----BEGIN SUMMARY-----\n'
+
+	if [ "$_packages_upgraded" ]; then
+		echo 'Upgraded packages:'
+		for i in $_upgrades_avail; do
+			list_has "${i%%:*}" $_packages_upgraded || continue
+			format_pkg_update '  %s (%s -> %s)\n' "$i"
+		done
+		printf '\n'
+	fi
+
+	if [ "$_packages_skipped" ]; then
+		echo 'Skipped updates:'
+		for i in $_upgrades_avail; do
+			list_has "${i%%:*}" $_packages_skipped || continue
+			format_pkg_update '  %s (%s -> %s)\n' "$i"
+		done
+		printf '\n'
+	fi
+
+	if [ "$_services_restarted" ]; then
+		echo 'Restarted services:'
+		printf '  %s\n' $_services_restarted
+		printf '\n'
+	fi
+
+	if [ "$_services_skipped" ]; then
+		echo 'Skipped services that should be restarted manually:'
+		printf '  %s\n' $_services_skipped
+		printf '\n'
+	fi
+
+	if [ "$_unhandled_pids" ]; then
+		echo 'Processes that should be restarted, but service not found:'
+		for pid in $_unhandled_pids; do
+			exe=$(proc_exe "$pid") || continue  # PID is probably already gone
+			cmdline=$(proc_cmdline "$pid") || :
+			printf '  %d %s (%s)\n' "$pid" "${cmdline%% *}" "$exe"
+		done
+		printf '\n'
+	fi
+
+	printf -- '-----END SUMMARY-----\n'
+}
+
+
+## Hooks
+
+# See default_can_upgrade().
+can_upgrade() {
+	default_can_upgrade "$@"
+}
+
+# Hook executed before upgrading packages.
+before_upgrade() {
+	:
+}
+
+# Hook executed after upgrading packages.
+after_upgrade() {
+	:
+}
+
+# See default_restart_process().
+restart_process() {
+	default_restart_process "$@"
+}
+
+# See default_can_restart_service().
+can_restart_service() {
+	default_can_restart_service "$@"
+}
+
+# See default_restart_service().
+restart_service() {
+	default_restart_service "$@"
+}
+
+# Hook executed after services has been restarted.
+after_restarts() {
+	:
+}
+
+# Hook executed before normal exit (i.e. not after error).
+finalize() {
+	print_report
+}
+
+
+## Process arguments
+
+while getopts ':hsVv' OPT 2>/dev/null; do
+	case "$OPT" in
+		h) help 0;;
+		s) DRY_RUN=true;;
+		V) echo "$PROGNAME $VERSION"; exit 0;;
+		v) DEBUG=true;;
+		\?) die "unrecognized option -$OPTARG (use -h for help)" 100;;
+	esac
+done
+shift $(( OPTIND - 1 ))
+[ $# -le 1 ] || die "too many arguments (expected 0..1, given $#)" 100
+
+_config=${1:-$DEFAULT_CONFIG}
+[ -r "$_config" ] || die "file '$_config' does not exist or not readable!" 1
+
+
+## 0. Initialize
+
+edebug "Sourcing config $_config"
+. "$_config"
+
+# Source functions again to ensure that CONFIG did not override any function.
+. "$DATA_DIR"/functions.sh
+
+_packages_blacklist=$(case_patt "$packages_blacklist")
+_upgrades_avail=''
+_pkgs_upgrade=''
+
+_packages_skipped=''
+_packages_upgraded=''
+_services_restarted=''
+_services_skipped=''
+_unhandled_pids=''
+
+
+## 1. Update repositories
+
+einfo 'Checking available updates...'
+
+_apk update --quiet ${DEBUG:+"--verbose"}
+
+## 2. Check and maybe perform self-upgrade
+
+if has_update 'apk-tools'; then
+	edebug "Checking whether upgrade apk-tools"
+
+	if can_upgrade 'apk-tools'; then
+		edebug 'Executing before_upgrade hook'
+		before_upgrade 'apk-tools'
+
+		einfo 'Upgrading apk-tools...'
+		self_upgrade
+		_packages_upgraded='apk-tools'
+
+		edebug 'Executing after_upgrade hook'
+		after_upgrade 'apk-tools'
+	else
+		ewarn 'Skipping apk self-upgrade'
+		_packages_skipped='apk-tools'
+	fi
+fi
+
+## 3. Check available upgrades
+
+_upgrades_avail=$(find_updates)
+if [ -z "$_upgrades_avail" ]; then
+	einfo 'No upgrades available'
+	edebug 'Executing finalize hook'
+	finalize
+	exit 0
+fi
+
+## 4. Select packages to be upgraded
+
+for item in $_upgrades_avail; do
+	# Expand to <pkgname> <oldver> <newver>.
+	item=$(printf %s "$item" | tr ':' ' ')
+
+	edebug "Checking whether upgrade $item"
+	can_upgrade $item \
+		&& _pkgs_upgrade="$_pkgs_upgrade ${item%% *}" \
+		|| _packages_skipped="$_packages_skipped ${item%% *}"
+done
+if [ -z "$_pkgs_upgrade" ]; then
+	edebug 'Executing finalize hook'
+	finalize
+	exit 0
+fi
+
+## 5. Upgrade selected packages
+
+edebug 'Executing before_upgrade hook'
+before_upgrade "$_pkgs_upgrade"
+
+einfo "Upgrading packages: $_pkgs_upgrade"
+upgrade $_pkgs_upgrade
+_packages_upgraded="$_pkgs_upgrade"
+
+edebug 'Executing after_upgrade hook'
+after_upgrade "$_packages_upgraded"
+
+## 6. Find and restart affected services
+
+# Preprocess case patterns for use in default_can_restart_service().
+_services_whitelist_patt=$(case_patt "$services_whitelist")
+_services_blacklist_patt=$(case_patt "$services_blacklist")
+
+for pid in $(procs_using_modified_files "$check_mapped_files_filter"); do
+	exe=$(proc_exe $pid) || continue
+	restart_process $pid "$exe" "$(proc_cmdline $pid ||:)"
+done
+
+if [ "$_services_restarted" ]; then
+	edebug 'Running after_restarts hook'
+	after_restarts "$_services_restarted"
+fi
+
+edebug 'Executing finalize hook'
+finalize
+exit 0

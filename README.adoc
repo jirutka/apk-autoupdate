@@ -3,6 +3,19 @@
 TODO
 
 
+== Requirements
+
+.*Runtime*:
+* Linux system with `/proc`
+* http://pubs.opengroup.org/onlinepubs/9699919799/utilities/V3_chap02.html[POSIX-sh] compatible shell with support for `set -e pipefail`, `local` and `readonly` (e.g. Busybox ash, ZSH, bash, …, sadly not dash)
+* https://github.com/alpinelinux/apk-tools/[apk-tools]
+* common userland with `awk`, `ps`, `sed` (e.g. from Busybox, GNU coreutils, …)
+
+.*Build*:
+* C compiler and linker supporting at least C99 (tested with clang and gcc)
+* https://www.gnu.org/software/make/[GNU Make]
+
+
 == License
 
 This project is licensed under http://opensource.org/licenses/MIT/[MIT License].

@@ -15,8 +15,18 @@ SED           := sed
 
 GIT_REV		  := $(shell test -d .git && git describe 2>/dev/null || echo exported)
 ifneq ($(GIT_REV), exported)
-VERSION       := $(patsubst $(PACKAGE)-%,%,$(GIT_REV))
-VERSION       := $(patsubst v%,%,$(VERSION))
+  VERSION     := $(patsubst $(PACKAGE)-%,%,$(GIT_REV))
+  VERSION     := $(patsubst v%,%,$(VERSION))
+endif
+
+ifeq ($(DEBUG), 1)
+  CFLAGS      := -g -DDEBUG
+  CFLAGS      += -Wall -Wextra -pedantic
+  ifeq ($(shell $(CC) --version | grep -q clang && echo clang), clang)
+    CFLAGS    += -Weverything -Wno-vla
+  endif
+else
+  CFLAGS      ?= -Os -DNDEBUG
 endif
 
 D              = $(BUILD_DIR)

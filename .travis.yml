@@ -3,5 +3,5 @@ compiler:
   - clang
   - gcc
 script:
-  - make build
+  - make build DEBUG=1
   - ./build/procs-need-restart -h

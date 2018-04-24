@@ -172,20 +172,18 @@ static int cmp_files (char *fname1, char *fname2) {
 
 	FILE *fp1 = fopen(fname1, "r");
 	FILE *fp2 = fopen(fname2, "r");
-	if (!fp1 || !fp2) goto end;
 
-	int c1, c2;
-	do {
-		c1 = getc(fp1);
-		c2 = getc(fp2);
-	} while (c1 == c2 && c1 != EOF && c2 != EOF);
+	if (fp1 && fp2) {
+		int c1, c2;
+		do {
+			c1 = getc(fp1);
+			c2 = getc(fp2);
+		} while (c1 == c2 && c1 != EOF && c2 != EOF);
 
-	if (ferror(fp1) || ferror(fp2)) {
-		goto end;
+		if (!ferror(fp1) && !ferror(fp2)) {
+			res = c1 != c2;
+		}
 	}
-	res = c1 != c2;
-
-end:
 	if (fp1) fclose(fp1);
 	if (fp2) fclose(fp2);
 

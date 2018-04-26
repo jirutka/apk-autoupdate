@@ -1,6 +1,11 @@
 = APK Automatic Updates
 
-TODO
+The aim of *apk-autoupdate* is to keep the system up-to-date.
+It checks available updates, installs them and restarts affected services.
+The tool is intended to be executed automatically and regularly by cron or similar tool.
+
+apk-autoupdate is designed to be flexible and highly customizable.
+Its configuration file is based on shell and provides many hooks allowing you to adjust each step to your needs (see link:man/autoupdate.conf.5.adoc[autoupdate.conf(5)]).
 
 
 == Requirements

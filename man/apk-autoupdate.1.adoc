@@ -1,0 +1,76 @@
+= apk-autoupdate(1)
+Jakub Jirutka
+:doctype: manpage
+:repo-uri: https://github.com/jirutka/apk-autoupdate
+:issues-uri: {repo-uri}/issues
+:man-uri: {repo-uri}/blob/dev/man/
+
+== NAME
+
+apk-autoupdate - automatic updates with apk
+
+
+== SYNOPSIS
+
+*apk-autoupdate* [-s] [-v] [-V] [-h] [--] [_config_]
+
+
+== DESCRIPTION
+
+The aim of *apk-autoupdate* is to keep the system up-to-date.
+It checks available updates, installs them and restarts affected services.
+The tool is intended to be executed automatically and regularly by cron or similar tool.
+
+*apk-autoupdate* is designed to be flexible and highly customizable.
+Its configuration file is based on shell and provides many hooks allowing you to adjust each step to your needs (see *autoupdate.conf(5)*).
+
+The command accepts a single positional argument pointing to the configuration file.
+If no configuration file is passed, `/etc/apk/autoupdate.conf` is used.
+
+
+== OPTIONS
+
+*-s*::
+  Show what would be done without actually doing it.
+
+*-v*::
+  Be verbose (i.e. print debug messages).
+
+*-V*::
+  Print version and exit.
+
+*-h*::
+  Show this message and exit.
+
+
+== ENVIRONMENT
+
+The following environment variables affect apk-autoupdate:
+
+*DEBUG*::
+  The same as *-v*.
+
+*DRY_RUN*::
+  The same as *-s*.
+
+
+== FILES
+
+/etc/apk/autoupdate.conf::
+  Default location of the apk-autoupdate`'s configuration file.
+
+
+== AUTHORS
+
+*apk-autoupdate*`'s author is {author}.
+
+
+== REPORTING BUGS
+
+Report bugs to the project`'s issue tracker at {issues-uri}.
+
+
+== SEE ALSO
+
+ifdef::backend-manpage[autoupdate.conf(5), procs-need-restart(1), apk(1)]
+ifndef::backend-manpage[{man-uri}/autoupdate.conf.5.adoc[autoupdate.conf(5)], {man-uri}/procs-need-restart.1.adoc[procs-need-restart(1)]]

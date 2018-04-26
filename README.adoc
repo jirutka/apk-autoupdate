@@ -14,6 +14,7 @@ TODO
 .*Build*:
 * C compiler and linker supporting at least C99 (tested with clang and gcc)
 * https://www.gnu.org/software/make/[GNU Make]
+* http://asciidoctor.org/[Asciidoctor] (for building man pages)
 
 
 == License

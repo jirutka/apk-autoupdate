@@ -1,0 +1,231 @@
+= autoupdate.conf(5)
+Jakub Jirutka
+:doctype: manpage
+:repo-uri: https://github.com/jirutka/apk-autoupdate
+:issues-uri: {repo-uri}/issues
+:man-uri: {repo-uri}/blob/dev/man/
+
+== NAME
+
+autoupdate.conf - configuration file for apk-autoupdate
+
+
+== SYNOPSIS
+
+*/etc/apk/autoupdate.conf*
+
+
+== DESCRIPTION
+
+*autoupdate.conf* is the configuration file for *apk-autoupdate(1)*.
+It is basically a POSIX shell script with defined set of variables and functions meant to be overridden to adjust apk-autoupdate`'s behaviour (just like OpenRC runscripts, APKBUILD(5), ...).
+
+
+== VARIABLES
+
+The following variables may be defined by the user to configure apk-autoupdate.
+
+*packages_blacklist*::
+Specifies packages that should not be automatically upgraded.
+The value is a whitespace separated list of shell patterns describing names of packages (e.g. `"linux-* musl python[23]"`).
++
+The default value is `"linux-*"`.
+
+*services_blacklist*::
+Specifies services that should never be automatically restarted, unless they are on the whitelist (see *services_whitelist*).
+The value is a whitespace separated list of shell patterns describing names of services (e.g. `"++*++"`, `"net.* sshd"`).
++
+The default value is `"*"`.
+
+*services_whitelist*::
+Specifies services that shall be automatically restarted when needed.
+This list is evaluated before *services_blacklist*.
+The value is a whitespace separated list of shell patterns describing names of services (e.g. `"nginx s6*"`).
+
+*programs_services*::
+Specifies explicit mapping between programs and services, optionally with a runscript action (command) to perform for restart.
+The value is a whitespace separated list of triples `<program-path>:<service-name>:<action>`.
++
+* _program-path_ - A shell pattern describing absolute path of the program executable (e.g. `/usr/sbin/nginx`).
+* _service-name_ - Name of the service that manages the program (e.g. `nginx`).
+* _action_ - Command to be used for resting the service; this component may be omitted, defaults to `"restart"`.
+
++
+Please note that in most cases it is not needed to explicitly map programs to services, unless you want to use different action than `"restart"` or the program`'s init file is badly written.
+
+*check_mapped_files_filter*::
+Specifies files of which replacement after the upgrade marks the processes that use them as needed to be restarted.
+The value is a whitespace separated list of glob patterns where leading `"!"` negates the pattern.
+This will be passed to *procs-need-restart(1)*, each pattern as an *-f* option.
++
+The default value is `"!/dev/* !/home/* !/run/* !/tmp/* !/var/* *"`.
+
+*rc_service_opts*::
+Options to be passed into OpenRC init script when restarting a service.
++
+The default value is `"--ifstarted --quiet --nocolor --nodeps"`.
+
+
+== FUNCTIONS
+
+The following functions may be overridden by the user to customize apk-autoupdate`'s behaviour.
+
+*can_upgrade* _pkgname_ _oldver_ _newver_::
+This function is called for each outdated package to decide whether it should be upgraded or not.
++
+The default implementation calls function *default_can_upgrade* that filters packages based on *packages_blacklist*.
+If the package or any dependency pulled by it is listed in *packages_blacklist*, then this function returns _1_.
++
+*Arguments*:
+
+* _$1_ - Name of the package.
+* _$2_ - The current version installed.
+* _$3_ - The new version available.
+
++
+*Return value:*
+
+* _0_ if the package can be upgraded.
+* _1_ if the package should not be upgraded.
+
+
+*before_upgrade* _pkgnames_::
+This hook is called after updates to be installed are resolved and before installing them.
++
+There is no default implementation for this function.
++
+*Arguments:*
+
+* _$1_ - A space separated list of packages (names) that will be upgraded.
+
+
+*after_upgrade* _pkgnames_::
+This hook is called right after the upgrade finished and before checking processes/services to be restarted.
++
+There is no default implementation for this function.
++
+*Arguments:*
+
+* _$1_ - A space separated list of packages (names) that have been be upgraded.
+
+
+*restart_process* _pid_ _exe_ _cmdline_::
+This function is called for each affected process that needs to be restarted.
++
+The default implementation calls function *default_restart_process*. TODO
++
+*Arguments:*
+
+* _$1_ - PID
+* _$2_ - Path of the process`' executable.
+* _$3_ - The process`' cmdline.
+
+
+*can_restart_service* _svcname_::
+This function is called for each affected service that needs to be restarted to decide if it should be restarted automatically or not.
++
+The default implementation calls function *default_can_restart_service* that filter services based on *services_whitelist* and *services_blacklist*.
++
+*Arguments:*
+
+* _$1_ - Name of the service.
+
++
+*Return value:*
+
+* _0_ if the service should be restart.
+* _1_ if the service should not be automatically restarted.
+
+
+*restart_service* _svcname_ [_action_]::
+This function is called for each affected service that needs to be restarted and has not been skipped by *can_restart_service*.
++
+The default implementation calls *default_restart_service*.
+You may override *restart_service* to customize the restart procedure for specific services.
++
+*Arguments:*
+
+* _$1_ - Name of the service.
+* _$2_ - Action (command) to perform (default is "`restart`").
+
+
+*after_restarts* _svcnames_::
+This hook is called after all affected services have been restarted, if any.
+There is no default implementation for this function.
++
+*Arguments:*
+
+* _$1_ - A space separated list of services (names) that have been restarted.
+
+
+*finalize*::
+This hook is called after everything is done.
+There are currently three exit points: no updates available, no packages to be upgraded, packages have been upgraded and affected services restarted.
++
+The default implementation calls function *print_report*.
+
+
+=== Builtins
+
+The following functions are available in autoupdate.conf, but not meant to be overridden.
+
+*find_service_by_pid* _pid_::
+Finds the service that started process with the given PID and prints its name.
+
+*service_ctl* _svcname_ [_opts..._]::
+Control the specified service.
+In the case of OpenRC this function just executes _/etc/init.d/$svcname "$opts"_, unless running with *-s* (simulate).
+
+*edebug* [_msg_]::
+Logs the message given as `$1` or from STDIN with level DEBUG.
+
+*einfo* [_msg_]::
+Logs the message given as `$1` or from STDIN with level INFO.
+
+*ewarn* [_msg_]::
+Logs the message given as `$1` or from STDIN with level WARN.
+
+*list_has* _needle_ _items..._::
+Returns 0 if item `$1` is contained in list `$@`, otherwise returns 1.
+
+
+== EXAMPLES
+
+[source, sh]
+./etc/apk/autoupdate.conf:
+----
+packages_blacklist="linux-* musl python[23]"
+
+services_blacklist="net.* sshd"
+services_whitelist=""
+
+programs_services="
+    /usr/sbin/nginx:nginx:reload
+    /usr/sbin/unbound:unbound:reload"
+
+can_restart_service() {
+    case "$1" in
+        # Restart rsyncd only when there are no active connections.
+        rsyncd) ! ps | grep /usr/bin/rsync | grep -q nobody;;
+
+        # Use default handling for other services.
+        *) default_can_restart_service "$@";;
+    esac
+}
+----
+
+
+== AUTHORS
+
+{author}
+
+
+== REPORTING BUGS
+
+Report bugs to the project`'s issue tracker at {issues-uri}.
+
+
+== SEE ALSO
+
+ifdef::backend-manpage[apk-autoupdate(1), procs-need-restart(1), apk(1)]
+ifndef::backend-manpage[{man-uri}/apk-autoupdate.1.adoc[apk-autoupdate(1)], {man-uri}/procs-need-restart.1.adoc[procs-need-restart(1)]]

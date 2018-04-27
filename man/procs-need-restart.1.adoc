@@ -1,0 +1,72 @@
+= procs-need-restart(1)
+Jakub Jirutka
+:doctype: manpage
+:repo-uri: https://github.com/jirutka/apk-autoupdate
+:issues-uri: {repo-uri}/issues
+:man-uri: {repo-uri}/blob/dev/man/
+
+== NAME
+
+procs-need-restart - find processes that need restarting after upgrade
+
+
+== SYNOPSIS
+
+*procs-need-restart* [-c] [-f _pattern_] [-v] [-h] [-V] [--] [_PID_ _..._]
+
+
+== DESCRIPTION
+
+*procs-need-restart* is a simple program designed to help to find processes that need restarting after upgrade.
+It reports processes that use (maps into memory) files that have been deleted or replaced on disk.
+
+The command accepts one or more PID of processes to scan.
+If no positional argument is given, all processes running on the system (except kernel processes) are scanned.
+
+This program is part of *apk-autoupdate* package.
+
+
+== OPTIONS
+
+*-c*::
+Compare content of each mapped file marked as replaced with the current one on disk to exclude files replaced by an identical copy.
+This feature needs access to `/proc/<pid>/map_files`.
+
+*-f* _pattern_::
+Specify paths of mapped files to include/exclude from checking.
+Syntax is identical with *fnmatch(3)* with no flags, but with leading "`!`" for negative match (exclude).
+This option may be repeated multiple times.
++
+Example: `"!/dev/* !/home/* !/run/* !/tmp/* !/var/* *"`.
+
+*-v*::
+Report all affected mapped files.
+
+*-h*::
+Show this message and exit.
+
+*-V*::
+Print program version and exit.
+
+
+== EXIT STATUS
+
+* 0 - clean exit, no error has encountered
+* 1 - some error has encountered
+* 100 - wrong usage (invalid option or argument given)
+
+
+== AUTHORS
+
+{author}
+
+
+== REPORTING BUGS
+
+Report bugs to the project`'s issue tracker at {issues-uri}.
+
+
+== SEE ALSO
+
+ifdef::backend-manpage[apk-autoupdate(1)]
+ifndef::backend-manpage[{man-uri}/apk-autoupdate.1.adoc[apk-autoupdate(1)]]

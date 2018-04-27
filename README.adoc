@@ -8,6 +8,13 @@ apk-autoupdate is designed to be flexible and highly customizable.
 Its configuration file is based on shell and provides many hooks allowing you to adjust each step to your needs (see link:man/autoupdate.conf.5.adoc[autoupdate.conf(5)]).
 
 
+== Manuals
+
+* link:man/apk-autoupdate.1.adoc[apk-autoupdate(1)]
+* link:man/procs-need-restart.1.adoc[procs-need-restart(1)]
+* link:man/autoupdate.conf.5.adoc[autoupdate.conf(5)]
+
+
 == Requirements
 
 .*Runtime*:

@@ -231,7 +231,7 @@ static int resolve_link (const char *pathname, char *buff, size_t buff_size) {
 
 	errno = 0;
 	ssize_t size = readlink(pathname, buff, buff_size - 1);
-	if (size < 0 || size >= buff_size) {
+	if (size < 0 || (size_t)size >= buff_size) {
 		return RET_ERROR;
 	}
 	buff[size] = '\0';  // readlink does not end string with \0!
@@ -353,7 +353,7 @@ static int proc_has_replaced_exe (pid_t pid, const char **file_patterns) {
 		char file_path[PATH_MAX];
 
 		int len = snprintf(file_path, sizeof(file_path), PROC_ROOT_PATH, pid, link_path);
-		if (len <= 0 || len >= sizeof(file_path)) {
+		if (len <= 0 || (size_t)len >= sizeof(file_path)) {
 			log_err("too long file path: " PROC_ROOT_PATH, pid, link_path);
 
 		// Compare the file on disk with the mapped one, return 1 (no) if they

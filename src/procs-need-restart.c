@@ -27,6 +27,7 @@
 #include <ctype.h>
 #include <dirent.h>
 #include <errno.h>
+#include <fcntl.h>
 #include <fnmatch.h>
 #include <limits.h>
 #include <signal.h>
@@ -36,6 +37,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/mman.h>
 #include <sys/stat.h>
 #include <unistd.h>
 
@@ -170,22 +172,45 @@ static bool fnmatch_any (const char **patterns, const char *string, int flags) {
 static int cmp_files (const char *fname1, const char *fname2) {
 	int res = RET_ERROR;
 
-	FILE *fp1 = fopen(fname1, "r");
-	FILE *fp2 = fopen(fname2, "r");
+	int fd1 = -1, fd2 = -1;
+	char *addr1 = NULL, *addr2 = NULL;
+	size_t size = 0;
 
-	if (fp1 && fp2) {
-		int c1, c2;
-		do {
-			c1 = getc(fp1);
-			c2 = getc(fp2);
-		} while (c1 == c2 && c1 != EOF && c2 != EOF);
-
-		if (!ferror(fp1) && !ferror(fp2)) {
-			res = c1 != c2;
-		}
+	if ((fd1 = open(fname1, O_RDONLY)) < 0) {
+		goto done;
 	}
-	if (fp1) fclose(fp1);
-	if (fp2) fclose(fp2);
+	if ((fd2 = open(fname2, O_RDONLY)) < 0) {
+		goto done;
+	}
+
+	{
+		struct stat sb1, sb2;
+		if (fstat(fd1, &sb1) < 0 || fstat(fd2, &sb2) < 0) {
+			goto done;
+		}
+		if (sb1.st_size != sb2.st_size) {
+			res = 1;  // files are different
+			goto done;
+		}
+		size = (size_t) sb1.st_size;
+	}
+
+	if ((addr1 = mmap(NULL, size, PROT_READ, MAP_SHARED, fd1, 0)) == MAP_FAILED) {
+		log_err("%s: %s", fname1, strerror(errno));
+		goto done;
+	}
+	if ((addr2 = mmap(NULL, size, PROT_READ, MAP_SHARED, fd2, 0)) == MAP_FAILED) {
+		log_err("%s: %s", fname2, strerror(errno));
+		goto done;
+	}
+
+	res = memcmp(addr1, addr2, size) == 0 ? 0 : 1;
+
+done:
+	if (addr1) (void) munmap(addr1, size);
+	if (addr2) (void) munmap(addr2, size);
+	if (fd1 > 0) (void) close(fd1);
+	if (fd2 > 0) (void) close(fd2);
 
 	return res;
 }

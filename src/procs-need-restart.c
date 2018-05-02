@@ -140,7 +140,7 @@ static bool str_chomp (char *str, const char *suffix) {
 	return true;
 }
 
-static int str_to_uint (char *str) {
+static int str_to_uint (const char *str) {
 	if (!str || !isdigit(str[0])) {
 		return RET_ERROR;
 	}
@@ -154,10 +154,10 @@ static int str_to_uint (char *str) {
 	return (int) res;
 }
 
-static bool fnmatch_any (char **patterns, char *string, int flags) {
+static bool fnmatch_any (const char **patterns, const char *string, int flags) {
 	bool negated = false;
 
-	foreach(char *item, patterns, NULL, {
+	foreach(const char *item, patterns, NULL, {
 		negated = item[0] == '!';
 
 		if (fnmatch(negated ? (item) + 1 : item, string, flags) == 0) {
@@ -167,7 +167,7 @@ static bool fnmatch_any (char **patterns, char *string, int flags) {
 	return false;
 }
 
-static int cmp_files (char *fname1, char *fname2) {
+static int cmp_files (const char *fname1, const char *fname2) {
 	int res = RET_ERROR;
 
 	FILE *fp1 = fopen(fname1, "r");
@@ -239,7 +239,7 @@ static int resolve_link (const char *pathname, char *buff, size_t buff_size) {
 	return 0;
 }
 
-static int proc_maps_replaced_files (pid_t pid, char **file_patterns) {
+static int proc_maps_replaced_files (pid_t pid, const char **file_patterns) {
 	int res = 1;
 	struct map_info map;
 	char last_filename[PATH_MAX + 1] = { '\0' };
@@ -319,7 +319,7 @@ static int proc_maps_replaced_files (pid_t pid, char **file_patterns) {
 	return res;
 }
 
-static int proc_has_replaced_exe (pid_t pid, char **file_patterns) {
+static int proc_has_replaced_exe (pid_t pid, const char **file_patterns) {
 	char exe_path[sizeof(PROC_EXE_PATH) + PID_STR_MAX + 1];
 	char link_path[PATH_MAX];
 
@@ -371,7 +371,7 @@ static int proc_has_replaced_exe (pid_t pid, char **file_patterns) {
 	return 0;  // yes
 }
 
-static int scan_proc (pid_t pid, char **file_patterns) {
+static int scan_proc (pid_t pid, const char **file_patterns) {
 
 	int res1 = proc_has_replaced_exe(pid, file_patterns);
 	if (res1 == RET_ERROR) {
@@ -384,7 +384,7 @@ static int scan_proc (pid_t pid, char **file_patterns) {
 	return res1 * res2;
 }
 
-static int scan_procs (pid_t *pids, char **file_patterns) {
+static int scan_procs (pid_t *pids, const char **file_patterns) {
 	int status = EXIT_SUCCESS;
 
 	foreach(pid_t pid, pids, -1, {
@@ -395,7 +395,7 @@ static int scan_procs (pid_t *pids, char **file_patterns) {
 	return status;
 }
 
-static int scan_all_procs (char **file_patterns) {
+static int scan_all_procs (const char **file_patterns) {
 	int status = EXIT_SUCCESS;
 
 	DIR *dir = opendir(PROCFS_PATH);
@@ -423,7 +423,7 @@ static int scan_all_procs (char **file_patterns) {
 }
 
 int main (int argc, char **argv) {
-	char *file_patterns[argc + 1];
+	const char *file_patterns[argc + 1];
 	file_patterns[0] = NULL;
 
 	{

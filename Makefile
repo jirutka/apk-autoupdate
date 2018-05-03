@@ -75,6 +75,7 @@ install-exec: build
 install-man: man
 	$(INSTALL) -d $(DESTDIR)$(mandir)/man1
 	$(INSTALL) -m 644 $(addprefix $(D)/,$(filter %.1,$(MAN_FILES))) $(DESTDIR)$(mandir)/man1/
+	$(INSTALL) -d $(DESTDIR)$(mandir)/man5
 	$(INSTALL) -m 644 $(addprefix $(D)/,$(filter %.5,$(MAN_FILES))) $(DESTDIR)$(mandir)/man5/
 
 #: Print list of targets.

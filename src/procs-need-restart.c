@@ -107,6 +107,7 @@ static unsigned int flags = 0;
 struct map_info {
 	ptrdiff_t start;
 	ptrdiff_t end;
+	unsigned int dev_major;
 	unsigned long inode;
 	char filename[PATH_MAX + 8];  // we need +1 for \0, but use 8 for better align
 };
@@ -295,8 +296,8 @@ static int proc_maps_replaced_files (pid_t pid, const char **file_patterns) {
 		(void) str_chomp(buf, ".apk-new");
 
 		// Parse the line and skip if it has wrong format.
-		if (sscanf(buf, "%lx-%lx %*c%*c%*c%*c %*x %*x:%*x %lu%*[ \t]%" STR(PATH_MAX) "[^\n]s",
-		           &map.start, &map.end, &map.inode, map.filename) < 4) {
+		if (sscanf(buf, "%lx-%lx %*c%*c%*c%*c %*x %x:%*x %lu%*[ \t]%" STR(PATH_MAX) "[^\n]s",
+		           &map.start, &map.end, &map.dev_major, &map.inode, map.filename) < 5) {
 			continue;
 		}
 		// One filename is typically repeated three times in a row with
@@ -307,7 +308,8 @@ static int proc_maps_replaced_files (pid_t pid, const char **file_patterns) {
 		strncpy(last_filename, map.filename, sizeof(last_filename));
 
 		// Skip non-file entries.
-		if (map.inode == 0) {
+		// Entries like /SYSV00000000, /drm, /i915 etc. have major 0.
+		if (map.inode == 0 || map.dev_major == 0) {
 			continue;
 		}
 		// Skip files excluded based on given patterns, if any.

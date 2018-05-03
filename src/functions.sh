@@ -111,7 +111,7 @@ procs_using_modified_files() {
 	set -f  # disable globbing
 	local opts=$(printf -- '-f %s ' ${1:-*})
 
-	edebug "Executing: procs-need-restart -c $opts"
+	edebug "Executing: procs-need-restart $opts"
 	procs-need-restart -c $opts || retval=$?
 
 	set +f  # enable globbing

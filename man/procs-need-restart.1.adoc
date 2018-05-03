@@ -12,13 +12,13 @@ procs-need-restart - find processes that need restarting after upgrade
 
 == SYNOPSIS
 
-*procs-need-restart* [-c] [-f _pattern_] [-v] [-h] [-V] [--] [_PID_ _..._]
+*procs-need-restart* [-f _pattern_] [-v] [-h] [-V] [--] [_PID_ _..._]
 
 
 == DESCRIPTION
 
 *procs-need-restart* is a simple program designed to help to find processes that need restarting after upgrade.
-It reports processes that use (maps into memory) files that have been deleted or replaced on disk.
+It reports processes that use (maps into memory) files that have been deleted or replaced on disk (and the new files are not identical to the mapped ones).
 
 The command accepts one or more PID of processes to scan.
 If no positional argument is given, all processes running on the system (except kernel processes) are scanned.
@@ -27,10 +27,6 @@ This program is part of *apk-autoupdate* package.
 
 
 == OPTIONS
-
-*-c*::
-Compare content of each mapped file marked as replaced with the current one on disk to exclude files replaced by an identical copy.
-This feature needs access to `/proc/<pid>/map_files`.
 
 *-f* _pattern_::
 Specify paths of mapped files to include/exclude from checking.

@@ -60,7 +60,6 @@
 #define RET_ERROR              -1
 
 #define FLAG_VERBOSE           0x0001
-#define FLAG_CMP_FILES         0x0002
 
 // Length of highest pid_t (int) value encoded as a decimal number.
 #define PID_STR_MAX            10
@@ -83,15 +82,12 @@ static const char *HELP_MSG =
 	"Usage: " PROGNAME " [options] [PID...]\n"
 	"\n"
 	"Find processes that use (maps into memory) files which have been deleted\n"
-	"or replaced on disk. If no PID is specified, scan all processes.\n"
+	"or replaced on disk (and the new files are not identical to the mapped ones).\n"
+	"If no PID is specified, scan all processes.\n"
 	"\n"
 	"This program is part of apk-autoupdate.\n"
 	"\n"
 	"Options:\n"
-	"  -c         Compare content of each mapped file marked as replaced with\n"
-	"             the current one on disk to exclude files replaced by an identical\n"
-	"             copy. This feature needs access to /proc/<pid>/map_files.\n"
-	"\n"
 	"  -f PATT*   Specify paths of mapped files to include/exclude from checking.\n"
 	"             Syntax is identical with fnmatch(3) with no flags, but with\n"
 	"             leading \"!\" for negative match (exclude). This option may be\n"
@@ -318,15 +314,11 @@ static int proc_maps_replaced_files (pid_t pid, const char **file_patterns) {
 		if (file_patterns[0] && !fnmatch_any(file_patterns, map.filename, 0)) {
 			continue;
 		}
-
-		if (flags & FLAG_CMP_FILES) {
-			str_fmt(buf, buf_size, PROC_MAP_FILES_PATH, pid, map.start, map.end);
-
-			// Compare the file on disk with the mapped one and skip if
-			// they are identical.
-			if (cmp_files(map.filename, buf) == 0) {
-				continue;
-			}
+		// Compare the file on disk with the mapped one and skip if
+		// they are identical.
+		str_fmt(buf, buf_size, PROC_MAP_FILES_PATH, pid, map.start, map.end);
+		if (cmp_files(map.filename, buf) == 0) {
+			continue;
 		}
 
 		res = 0;  // yes
@@ -374,7 +366,7 @@ static int proc_has_replaced_exe (pid_t pid, const char **file_patterns) {
 		return 1;  // no
 	}
 
-	if (flags & FLAG_CMP_FILES) {
+	{
 		char file_path[PATH_MAX];
 
 		int len = snprintf(file_path, sizeof(file_path), PROC_ROOT_PATH, pid, link_path);
@@ -456,11 +448,8 @@ int main (int argc, char **argv) {
 		int f_cnt = 0;
 
 		opterr = 0;  // don't print implicit error message on unrecognized option
-		while ((optch = getopt(argc, argv, "cf:hVv")) != -1) {
+		while ((optch = getopt(argc, argv, "f:hVv")) != -1) {
 			switch (optch) {
-				case 'c':
-					flags |= FLAG_CMP_FILES;
-					break;
 				case 'f':
 					file_patterns[f_cnt++] = (char *)optarg;
 					break;

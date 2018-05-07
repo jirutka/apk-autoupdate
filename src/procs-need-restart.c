@@ -60,6 +60,7 @@
 #define RET_ERROR              -1
 
 #define FLAG_VERBOSE           0x0001
+#define FLAG_IGNORE_EACCES     0x0002
 
 // Length of highest pid_t (int) value encoded as a decimal number.
 #define PID_STR_MAX            10
@@ -83,7 +84,8 @@ static const char *HELP_MSG =
 	"\n"
 	"Find processes that use (maps into memory) files which have been deleted\n"
 	"or replaced on disk (and the new files are not identical to the mapped ones).\n"
-	"If no PID is specified, scan all processes.\n"
+	"If no PID is specified, scan all processes.  But if user's effective UID is\n"
+	"not 0 (i.e. not root), ignore processes we don't have permissions to examine.\n"
 	"\n"
 	"This program is part of apk-autoupdate.\n"
 	"\n"
@@ -274,6 +276,9 @@ static int proc_maps_replaced_files (pid_t pid, const char **file_patterns) {
 		if ((maps_fp = fopen(maps_path, "r")) == NULL) {
 			int fopen_err = errno;
 
+			if (fopen_err == EACCES && flags & FLAG_IGNORE_EACCES) {
+				return 1;  //  no
+			}
 			// If process does not exist anymore, then it's not an error.
 			if (proc_exists(pid) == 1) {
 				return 1;  // no
@@ -348,6 +353,9 @@ static int proc_has_replaced_exe (pid_t pid, const char **file_patterns) {
 	if (resolve_link(exe_path, link_path, sizeof(link_path)) < 0) {
 		int link_err = errno;
 
+		if (link_err == EACCES && flags & FLAG_IGNORE_EACCES) {
+			return 1;  //  no
+		}
 		// If process does not exist anymore, then it's not an error.
 		if (proc_exists(pid) == 1) {
 			return 1;  // no
@@ -489,6 +497,9 @@ int main (int argc, char **argv) {
 		return scan_procs(pids, file_patterns);
 
 	} else {
+		if (geteuid() != 0) {
+			flags |= FLAG_IGNORE_EACCES;
+		}
 		return scan_all_procs(file_patterns);
 	}
 }

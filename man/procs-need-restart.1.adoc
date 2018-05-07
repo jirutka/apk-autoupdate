@@ -22,6 +22,7 @@ It reports processes that use (maps into memory) files that have been deleted or
 
 The command accepts one or more PID of processes to scan.
 If no positional argument is given, all processes running on the system (except kernel processes) are scanned.
+But if user`'s effective UID is not 0 (i.e. not running as root), processes the user has no permissions to examine are ignored.
 
 This program is part of *apk-autoupdate* package.
 

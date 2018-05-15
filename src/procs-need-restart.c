@@ -90,12 +90,12 @@ static const char *HELP_MSG =
 	"This program is part of apk-autoupdate.\n"
 	"\n"
 	"Options:\n"
-	"  -f PATT*   Specify paths of mapped files to include/exclude from checking.\n"
-	"             Syntax is identical with fnmatch(3) with no flags, but with\n"
-	"             leading \"!\" for negative match (exclude). This option may be\n"
-	"             repeated.\n"
-	"\n"
 	"  -v         Report all affected mapped files.\n"
+	"\n"
+	"  -x PATT*   Specify paths of mapped files to exclude from checking.\n"
+	"             Syntax is identical with fnmatch(3) with no flags, but with\n"
+	"             leading \"!\" for negative match (include). This option may be\n"
+	"             repeated.\n"
 	"\n"
 	"  -h         Show this message and exit.\n"
 	"\n"
@@ -263,7 +263,7 @@ static int resolve_link (const char *pathname, char *buff, size_t buff_size) {
 	return 0;
 }
 
-static int proc_maps_replaced_files (pid_t pid, const char **file_patterns) {
+static int proc_maps_replaced_files (pid_t pid, const char **exclude_list) {
 	int res = 1;
 	struct map_info map;
 	char last_filename[PATH_MAX + 1] = { '\0' };
@@ -318,7 +318,7 @@ static int proc_maps_replaced_files (pid_t pid, const char **file_patterns) {
 			continue;
 		}
 		// Skip files excluded based on given patterns, if any.
-		if (file_patterns[0] && !fnmatch_any(file_patterns, map.filename, 0)) {
+		if (exclude_list[0] && fnmatch_any(exclude_list, map.filename, 0)) {
 			continue;
 		}
 		// Compare the file on disk with the mapped one and skip if
@@ -343,7 +343,7 @@ static int proc_maps_replaced_files (pid_t pid, const char **file_patterns) {
 	return res;
 }
 
-static int proc_has_replaced_exe (pid_t pid, const char **file_patterns) {
+static int proc_has_replaced_exe (pid_t pid, const char **exclude_list) {
 	char exe_path[sizeof(PROC_EXE_PATH) + PID_STR_MAX + 1];
 	char link_path[PATH_MAX];
 
@@ -372,7 +372,7 @@ static int proc_has_replaced_exe (pid_t pid, const char **file_patterns) {
 	(void) str_chomp(link_path, ".apk-new");
 
 	// Skip files excluded based on given patterns, if any.
-	if (file_patterns[0] && !fnmatch_any(file_patterns, link_path, 0)) {
+	if (exclude_list[0] && fnmatch_any(exclude_list, link_path, 0)) {
 		return 1;  // no
 	}
 
@@ -398,31 +398,31 @@ static int proc_has_replaced_exe (pid_t pid, const char **file_patterns) {
 	return 0;  // yes
 }
 
-static int scan_proc (pid_t pid, const char **file_patterns) {
+static int scan_proc (pid_t pid, const char **exclude_list) {
 
-	int res1 = proc_has_replaced_exe(pid, file_patterns);
+	int res1 = proc_has_replaced_exe(pid, exclude_list);
 	if (res1 == RET_ERROR) {
 		return RET_ERROR;
 	} else if (res1 == 0 && !(flags & FLAG_VERBOSE)) {
 		return 0;
 	}
 
-	int res2 = proc_maps_replaced_files(pid, file_patterns);
+	int res2 = proc_maps_replaced_files(pid, exclude_list);
 	return res1 * res2;
 }
 
-static int scan_procs (pid_t *pids, const char **file_patterns) {
+static int scan_procs (pid_t *pids, const char **exclude_list) {
 	int status = EXIT_SUCCESS;
 
 	foreach(pid_t pid, pids, -1, {
-		if (scan_proc(pid, file_patterns) < 0) {
+		if (scan_proc(pid, exclude_list) < 0) {
 			status = EXIT_FAILURE;
 		}
 	})
 	return status;
 }
 
-static int scan_all_procs (const char **file_patterns) {
+static int scan_all_procs (const char **exclude_list) {
 	int status = EXIT_SUCCESS;
 
 	DIR *dir = opendir(PROCFS_PATH);
@@ -440,7 +440,7 @@ static int scan_all_procs (const char **file_patterns) {
 		// Skip kernel processes/threads.
 		if (is_kernel_proc(pid)) continue;
 
-		if (scan_proc(pid, file_patterns) < 0) {
+		if (scan_proc(pid, exclude_list) < 0) {
 			status = EXIT_FAILURE;
 		}
 	}
@@ -450,21 +450,21 @@ static int scan_all_procs (const char **file_patterns) {
 }
 
 int main (int argc, char **argv) {
-	const char *file_patterns[argc + 1];
-	file_patterns[0] = NULL;
+	const char *exclude_list[argc + 1];
+	exclude_list[0] = NULL;
 
 	{
 		int optch;
-		int f_cnt = 0;
+		int x_cnt = 0;
 
 		opterr = 0;  // don't print implicit error message on unrecognized option
-		while ((optch = getopt(argc, argv, "f:hVv")) != -1) {
+		while ((optch = getopt(argc, argv, "hVvx:")) != -1) {
 			switch (optch) {
-				case 'f':
-					file_patterns[f_cnt++] = (char *)optarg;
-					break;
 				case 'v':
 					flags |= FLAG_VERBOSE;
+					break;
+				case 'x':
+					exclude_list[x_cnt++] = (char *)optarg;
 					break;
 				case 'h':
 					printf("%s", HELP_MSG);
@@ -478,7 +478,7 @@ int main (int argc, char **argv) {
 					return EXIT_WRONG_USAGE;
 			}
 		}
-		file_patterns[f_cnt] = NULL;  // mark end of the array
+		exclude_list[x_cnt] = NULL;  // mark end of the array
 	}
 
 	if (optind < argc) {
@@ -494,12 +494,12 @@ int main (int argc, char **argv) {
 		}
 		pids[argc - optind] = -1;  // mark end of the array
 
-		return scan_procs(pids, file_patterns);
+		return scan_procs(pids, exclude_list);
 
 	} else {
 		if (geteuid() != 0) {
 			flags |= FLAG_IGNORE_EACCES;
 		}
-		return scan_all_procs(file_patterns);
+		return scan_all_procs(exclude_list);
 	}
 }

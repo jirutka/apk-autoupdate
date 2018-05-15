@@ -12,7 +12,7 @@ procs-need-restart - find processes that need restarting after upgrade
 
 == SYNOPSIS
 
-*procs-need-restart* [-f _pattern_] [-v] [-h] [-V] [--] [_PID_ _..._]
+*procs-need-restart* [-v] [-x _pattern_] [-h] [-V] [--] [_PID_ _..._]
 
 
 == DESCRIPTION
@@ -29,15 +29,15 @@ This program is part of *apk-autoupdate* package.
 
 == OPTIONS
 
-*-f* _pattern_::
-Specify paths of mapped files to include/exclude from checking.
-Syntax is identical with *fnmatch(3)* with no flags, but with leading "`!`" for negative match (exclude).
-This option may be repeated multiple times.
-+
-Example: `-f "!/dev/*" -f "!/home/*" -f "!/run/*" -f "!/tmp/*" -f "!/var/*" -f "*"`.
-
 *-v*::
 Report all affected mapped files.
+
+*-x* _pattern_::
+Specify paths of mapped files to exclude from checking.
+Syntax is identical with *fnmatch(3)* with no flags, but with leading "`!`" for negative match (include).
+This option may be repeated multiple times.
++
+Example: `-x "/dev/*" -x "!/home/smith/*" -x "/home/*"`.
 
 *-h*::
 Show this message and exit.

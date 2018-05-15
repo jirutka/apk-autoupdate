@@ -104,12 +104,12 @@ proc_exe() {
 
 # Prints PIDs of processes that use (maps into memory) files which have been
 # deleted or replaced (with different content) on disk.
-# $1: patterns to exclude/include certain paths from checking
+# $1: patterns to exclude certain paths from checking
 procs_using_modified_files() {
 	local retval=0
 
 	set -f  # disable globbing
-	local opts=$(printf -- '-f %s ' ${1:-*})
+	local opts=$(printf -- '-x %s ' ${1:-*})
 
 	edebug "Executing: procs-need-restart $opts"
 	procs-need-restart -c $opts || retval=$?

@@ -54,11 +54,11 @@ The value is a whitespace separated list of triples `<program-path>:<service-nam
 Please note that in most cases it is not needed to explicitly map programs to services, unless you want to use different action than `"restart"` or the program`'s init file is badly written.
 
 *check_mapped_files_filter*::
-Specifies files of which replacement after the upgrade marks the processes that use them as needed to be restarted.
+Specifies files of which replacement after the upgrade does _not_ mark the processes that use them as needed to be restarted.
 The value is a whitespace separated list of glob patterns where leading `"!"` negates the pattern.
-This will be passed to *procs-need-restart(1)*, each pattern as an *-f* option.
+This will be passed to *procs-need-restart(1)*, each pattern as an *-x* option.
 +
-The default value is `"!/dev/* !/home/* !/run/* !/tmp/* !/var/* *"`.
+The default value is `"/dev/* /home/* /run/* /tmp/* /var/*"`.
 
 *rc_service_opts*::
 Options to be passed into OpenRC init script when restarting a service.

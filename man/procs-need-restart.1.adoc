@@ -34,7 +34,7 @@ Specify paths of mapped files to include/exclude from checking.
 Syntax is identical with *fnmatch(3)* with no flags, but with leading "`!`" for negative match (exclude).
 This option may be repeated multiple times.
 +
-Example: `"!/dev/* !/home/* !/run/* !/tmp/* !/var/* *"`.
+Example: `-f "!/dev/*" -f "!/home/*" -f "!/run/*" -f "!/tmp/*" -f "!/var/*" -f "*"`.
 
 *-v*::
 Report all affected mapped files.

@@ -112,7 +112,7 @@ procs_using_modified_files() {
 	local opts=$(printf -- '-f %s ' ${1:-*})
 
 	edebug "Executing: procs-need-restart $opts"
-	procs-need-restart -c $opts || retval=$?
+	procs-need-restart $opts || retval=$?
 
 	set +f  # enable globbing
 	return $retval

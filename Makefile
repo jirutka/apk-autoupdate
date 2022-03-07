@@ -32,6 +32,8 @@ else
   CFLAGS      ?= -Os -DNDEBUG
 endif
 
+LDFLAGS        = --static --strip-all
+
 D              = $(BUILD_DIR)
 MAKEFILE_PATH  = $(lastword $(MAKEFILE_LIST))
 VPATH          = src:man

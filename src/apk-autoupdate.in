@@ -73,34 +73,15 @@ has_update() {
 }
 
 # Returns 0 if the specified package can be upgraded, otherwise returns 1.
-# Package "apk-tools" is handled specially as self-upgrade.
-#
-# XXX: This is quite flawed, we need proper support for upgrade --exclude in
-# apk to make it more reliable.
-#
 # $1: package name
 default_can_upgrade() {
-	local pkgname="$1"
-	local affected apk_args
-
-	case_match "$_packages_blacklist" "$pkgname" && return 1
-
-	case "$pkgname" in
-		apk-tools) apk_args='upgrade --self-upgrade-only';;
-		*) apk_args='add --upgrade';;
-	esac
-
-	affected=$(_apk $apk_args --simulate "$pkgname" \
-		| sed -En 's/\([0-9/]+\) \w+ing ([[:alnum:]+_-]+) \(.*\)/\1/p')
-	case_match "$_packages_blacklist" $affected && return 1
-
-	return 0
+	case_match "$_packages_blacklist" "$1" && return 1 || return 0
 }
 
-# Upgrades specified package(s), unless $DRY_RUN.
-# $@: package name(s)
-upgrade() {
-	_apk add --upgrade ${DRY_RUN:+"--simulate"} "$@"
+# Upgrades all available package(s) except the ones specified, unless $DRY_RUN.
+# $@: ignored package name(s)
+upgrade_all_except() {
+	_apk upgrade ${DRY_RUN:+"--simulate"} --ignore $@
 }
 
 # Runs apk self-upgrade, i.e. upgrades apk-tools and other essential packages.
@@ -328,6 +309,7 @@ edebug "Sourcing config $_config"
 _packages_blacklist=$(case_patt "$packages_blacklist")
 _upgrades_avail=''
 _pkgs_upgrade=''
+_pkgs_skip=''
 
 _packages_skipped=''
 _packages_upgraded=''
@@ -359,7 +341,7 @@ if has_update 'apk-tools'; then
 		after_upgrade 'apk-tools'
 	else
 		ewarn 'Skipping apk self-upgrade'
-		_packages_skipped='apk-tools'
+		_pkgs_skip='apk-tools'
 	fi
 fi
 
@@ -382,7 +364,7 @@ for item in $_upgrades_avail; do
 	edebug "Checking whether upgrade $item"
 	can_upgrade $item \
 		&& _pkgs_upgrade="$_pkgs_upgrade ${item%% *}" \
-		|| _packages_skipped="$_packages_skipped ${item%% *}"
+		|| _pkgs_skip="$_pkgs_skip ${item%% *}"
 done
 if [ -z "$_pkgs_upgrade" ]; then
 	edebug 'Executing finalize hook'
@@ -396,8 +378,9 @@ edebug 'Executing before_upgrade hook'
 before_upgrade "$_pkgs_upgrade"
 
 einfo "Upgrading packages: $_pkgs_upgrade"
-upgrade $_pkgs_upgrade
+upgrade_all_except $_pkgs_skip
 _packages_upgraded="$_pkgs_upgrade"
+_packages_skipped="$_pkgs_skip"
 
 edebug 'Executing after_upgrade hook'
 after_upgrade "$_packages_upgraded"

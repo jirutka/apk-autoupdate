@@ -23,7 +23,7 @@ readonly VERSION='@VERSION@'
 : ${DRY_RUN:=}
 
 # Predeclare configuration variables with default values.
-apk_opts='--no-progress --wait 1'
+apk_opts='--no-progress --no-interactive --wait 1'
 check_mapped_files_filter='!/dev/* !/home/* !/run/* !/tmp/* !/var/* *'
 packages_blacklist='linux-*'
 programs_services=''

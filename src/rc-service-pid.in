@@ -15,7 +15,7 @@ if ( set -o pipefail 2>/dev/null ); then
 	set -o pipefail
 fi
 
-readonly OPENRC_LIB='/lib/rc'
+readonly OPENRC_LIBEXEC='/usr/libexec/rc'
 
 help() {
 	sed -En '/^#---help---/,/^#---help---/p' "$0" | sed -E 's/^# ?//; 1d;$d;'
@@ -31,7 +31,7 @@ started_services() {
 
 # Prints value $2 of the service with name $1.
 service_get_value() {
-	RC_SVCNAME="$1" "$OPENRC_LIB"/bin/service_get_value "$2"
+	RC_SVCNAME="$1" "$OPENRC_LIBEXEC"/bin/service_get_value "$2"
 }
 
 # Prints PID of the service with name $1.

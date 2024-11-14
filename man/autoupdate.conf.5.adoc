@@ -74,7 +74,6 @@ The following functions may be overridden by the user to customize apk-autoupdat
 This function is called for each outdated package to decide whether it should be upgraded or not.
 +
 The default implementation calls function *default_can_upgrade* that filters packages based on *packages_blacklist*.
-If the package or any dependency pulled by it is listed in *packages_blacklist*, then this function returns _1_.
 +
 *Arguments*:
 

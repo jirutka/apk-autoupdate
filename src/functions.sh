@@ -4,29 +4,32 @@
 # $1: message (defaults is to read from STDIN)
 emsg() {
 	if [ $# -eq 0 ]; then
-		awk "{ print \"$PROGNAME\", \$0; fflush(); }" >&2
+		awk "{ print \"$PROGNAME\", \$0; fflush(); }"
 	else
-		printf '%s: %s\n' "$PROGNAME" "$1" >&2
+		printf '%s: %s\n' "$PROGNAME" "$1"
 	fi
 }
 
 # Logs the message from STDIN or $1 with level DEBUG.
+# $1: message (defaults is to read from STDIN)
 edebug() {
 	if [ "$DEBUG" ]; then
-		emsg "debug: $@"
+		emsg "debug: $@" >&2
 	elif [ $# -eq 0 ]; then
 		cat >/dev/null
 	fi
 }
 
 # Logs the message from STDIN or $1 with level INFO.
+# $1: message (defaults is to read from STDIN)
 einfo() {
 	emsg "$@"
 }
 
 # Logs the message from STDIN on $1 with level WARN.
+# $1: message (defaults is to read from STDIN)
 ewarn() {
-	emsg "$@"
+	emsg "$@" >&2
 }
 
 # Logs the error message and exits.

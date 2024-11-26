@@ -35,12 +35,14 @@ The default value is `"linux-*"`.
 Specifies services that should never be automatically restarted, unless they are on the whitelist (see *services_whitelist*).
 The value is a whitespace separated list of shell patterns describing names of services (e.g. `"++*++"`, `"net.* sshd"`).
 +
-The default value is `"*"`.
+The default value is `"*"` (no services will be restarted).
 
 *services_whitelist*::
 Specifies services that shall be automatically restarted when needed.
 This list is evaluated before *services_blacklist*.
 The value is a whitespace separated list of shell patterns describing names of services (e.g. `"nginx s6*"`).
++
+The default value is `""`
 
 *programs_services*::
 Specifies explicit mapping between programs and services, optionally with a runscript action (command) to perform for restart.
